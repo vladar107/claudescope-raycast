@@ -1,6 +1,7 @@
 import {
   Action,
   ActionPanel,
+  Color,
   Icon,
   List,
   Toast,
@@ -12,6 +13,30 @@ import {
 import { ClaudeScopeError, openClaudeScope } from "./claudescope";
 
 const QUICK_START_URL = "https://github.com/vladar107/claudescope#quick-start";
+
+interface AgentPresentation {
+  label: string;
+  color: Color.Dynamic;
+}
+
+/** Keep Raycast's agent tags aligned with ClaudeScope's light/dark badge palette. */
+const AGENT_PRESENTATIONS: Record<string, AgentPresentation> = {
+  "claude-code": { label: "Claude", color: { light: "#BF4722", dark: "#E8896B", adjustContrast: false } },
+  codex: { label: "Codex", color: { light: "#0A7A5E", dark: "#2CC4A0", adjustContrast: false } },
+  junie: { label: "Junie", color: { light: "#1A7F37", dark: "#56D964", adjustContrast: false } },
+  pi: { label: "pi", color: { light: "#6E40C9", dark: "#A371F7", adjustContrast: false } },
+  opencode: { label: "opencode", color: { light: "#9E6A03", dark: "#E3B341", adjustContrast: false } },
+  copilot: { label: "Copilot", color: { light: "#0969DA", dark: "#58A6FF", adjustContrast: false } },
+  antigravity: { label: "Antigravity", color: { light: "#1A73E8", dark: "#8AB4F8", adjustContrast: false } },
+  grok: { label: "Grok", color: { light: "#40484F", dark: "#C4CDD6", adjustContrast: false } },
+};
+
+export function agentTag(connectorId: string): { value: string; color?: Color.ColorLike } {
+  const presentation = AGENT_PRESENTATIONS[connectorId];
+  return presentation
+    ? { value: presentation.label, color: presentation.color }
+    : { value: connectorId, color: Color.SecondaryText };
+}
 
 export function ErrorView({ error, retry }: { error: Error; retry: () => void }) {
   const claudeScopeError = error instanceof ClaudeScopeError ? error : undefined;
