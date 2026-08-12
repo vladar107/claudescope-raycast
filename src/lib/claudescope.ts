@@ -2,7 +2,7 @@ import { getPreferenceValues } from "@raycast/api";
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -244,12 +244,16 @@ function isAbortError(error: unknown): boolean {
 
 async function execute(executable: string, args: string[], signal?: AbortSignal): Promise<string> {
   try {
+    // npm and version-manager launchers commonly use `#!/usr/bin/env node`.
+    // Raycast's PATH may omit the bin directory that contains both the launcher
+    // and Node, even when login-shell discovery found the launcher successfully.
+    const path = [dirname(executable), process.env.PATH].filter(Boolean).join(delimiter);
     const { stdout } = await execFileAsync(executable, args, {
       encoding: "utf8",
       timeout: COMMAND_TIMEOUT_MS,
       maxBuffer: MAX_OUTPUT_BYTES,
       signal,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, PATH: path, NO_COLOR: "1" },
     });
     return stdout.trim();
   } catch (error) {
