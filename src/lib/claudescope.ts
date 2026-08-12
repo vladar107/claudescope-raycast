@@ -12,6 +12,7 @@ export const MINIMUM_CLAUDESCOPE_VERSION = "0.17.0";
 const COMMAND_TIMEOUT_MS = 30_000;
 const DISCOVERY_TIMEOUT_MS = 5_000;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
+const MACOS_SYSTEM_PATHS = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
 interface ExtensionPreferences {
   executablePath?: string;
@@ -103,31 +104,58 @@ function discoveryCandidates(): string[] {
   ];
 }
 
-/** Ask the login shell for the executable using a constant command. User input
- * never enters the shell string; all ClaudeScope calls use argv execution. */
-async function discoverFromLoginShell(): Promise<string | undefined> {
+const LOGIN_PATH_MARKER = "CLAUDESCOPE_LOGIN_PATH=";
+
+interface LoginShellResult {
+  executable?: string;
+  path?: string;
+}
+
+let loginShellPathCache: Promise<string | undefined> | undefined;
+
+/** Ask the login shell for the executable and its PATH using a constant
+ * command. User input never enters the shell string; all ClaudeScope calls use
+ * argv execution. */
+async function queryLoginShell(): Promise<LoginShellResult> {
   const requestedShell = process.env.SHELL ?? "/bin/zsh";
   const shell = (await validatedExecutable(requestedShell)) ?? "/bin/zsh";
   try {
-    const { stdout } = await execFileAsync(shell, ["-lic", "command -v claudescope"], {
-      encoding: "utf8",
-      timeout: DISCOVERY_TIMEOUT_MS,
-      maxBuffer: 16 * 1024,
-      env: process.env,
-    });
+    const { stdout } = await execFileAsync(
+      shell,
+      ["-lic", `printf '%s\\n' "${LOGIN_PATH_MARKER}$PATH"; command -v claudescope; true`],
+      {
+        encoding: "utf8",
+        timeout: DISCOVERY_TIMEOUT_MS,
+        maxBuffer: 16 * 1024,
+        env: process.env,
+      },
+    );
     const lines = stdout
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
       .reverse();
+    const path = lines.find((line) => line.startsWith(LOGIN_PATH_MARKER))?.slice(LOGIN_PATH_MARKER.length);
     for (const line of lines) {
       const executable = await validatedExecutable(line);
-      if (executable) return executable;
+      if (executable) return { executable, path };
     }
+    return { path };
   } catch {
     // Known installation paths below still cover non-interactive shell setups.
+    return {};
   }
-  return undefined;
+}
+
+async function discoverFromLoginShell(): Promise<string | undefined> {
+  const { executable, path } = await queryLoginShell();
+  if (path) loginShellPathCache = Promise.resolve(path);
+  return executable;
+}
+
+function loginShellPath(): Promise<string | undefined> {
+  loginShellPathCache ??= queryLoginShell().then((result) => result.path);
+  return loginShellPathCache;
 }
 
 /** Resolve the binary once per command process. An explicit preference always
@@ -244,10 +272,11 @@ function isAbortError(error: unknown): boolean {
 
 async function execute(executable: string, args: string[], signal?: AbortSignal): Promise<string> {
   try {
-    // npm and version-manager launchers commonly use `#!/usr/bin/env node`.
-    // Raycast's PATH may omit the bin directory that contains both the launcher
-    // and Node, even when login-shell discovery found the launcher successfully.
-    const path = [dirname(executable), process.env.PATH].filter(Boolean).join(delimiter);
+    // Raycast's PATH may omit both a version manager's Node binary and standard
+    // macOS tools such as `/usr/bin/open`, which `claudescope open` launches.
+    const path = [dirname(executable), await loginShellPath(), ...MACOS_SYSTEM_PATHS, process.env.PATH]
+      .filter(Boolean)
+      .join(delimiter);
     const { stdout } = await execFileAsync(executable, args, {
       encoding: "utf8",
       timeout: COMMAND_TIMEOUT_MS,
