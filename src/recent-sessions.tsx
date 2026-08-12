@@ -1,7 +1,7 @@
 import { Action, ActionPanel, Icon, Keyboard, List } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { SessionMeta, listRecentSessions } from "./lib/claudescope";
-import { ErrorView, formatCost, formatDate, formatTokens, openWithFeedback } from "./lib/ui";
+import { agentTag, ErrorView, formatCost, formatDate, formatTokens, openWithFeedback } from "./lib/ui";
 
 interface SessionsState {
   sessions: SessionMeta[];
@@ -56,7 +56,7 @@ export default function Command() {
             subtitle={session.projectDisplayName}
             keywords={[session.id, session.projectId, session.connectorId]}
             accessories={[
-              { tag: session.connectorId },
+              { tag: agentTag(session.connectorId) },
               { text: formatDate(session.startedAt), tooltip: "Started" },
               {
                 text: `${formatTokens(session.totalTokens)} · ${formatCost(session.totalCostUsd)}`,
