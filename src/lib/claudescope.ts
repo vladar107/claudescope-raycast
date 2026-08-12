@@ -21,6 +21,7 @@ interface ExtensionPreferences {
 export interface SearchHit {
   sessionId: string;
   projectId: string;
+  projectDisplayName: string;
   title: string;
   snippet: string;
   score: number;
@@ -66,6 +67,7 @@ interface PreferencePromise<T> {
 
 let executableCache: PreferencePromise<string> | undefined;
 let compatibleExecutableCache: PreferencePromise<string> | undefined;
+let projectDisplayNamesCache: PreferencePromise<ReadonlyMap<string, string>> | undefined;
 
 function executablePreference(): string {
   return getPreferenceValues<ExtensionPreferences>().executablePath?.trim() ?? "";
@@ -314,7 +316,9 @@ function isNonBlankString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isSearchHit(value: unknown): value is SearchHit {
+type SearchHitPayload = Omit<SearchHit, "projectDisplayName">;
+
+function isSearchHit(value: unknown): value is SearchHitPayload {
   if (!isRecord(value)) return false;
   return (
     isNonBlankString(value.sessionId) &&
@@ -325,6 +329,35 @@ function isSearchHit(value: unknown): value is SearchHit {
     isNonBlankString(value.messageUuid) &&
     typeof value.role === "string"
   );
+}
+
+function isProjectMeta(value: unknown): value is { id: string; displayName: string } {
+  return isRecord(value) && isNonBlankString(value.id) && isNonBlankString(value.displayName);
+}
+
+/** Resolve stable project ids to the human names shown by ClaudeScope. */
+async function projectDisplayNames(): Promise<ReadonlyMap<string, string>> {
+  const preference = executablePreference();
+  if (!projectDisplayNamesCache || projectDisplayNamesCache.preference !== preference) {
+    const pending = (async () => {
+      const output = await runClaudeScope(["projects", "--json"]);
+      const parsed = parseJson(output);
+      if (!Array.isArray(parsed) || !parsed.every(isProjectMeta)) {
+        throw new ClaudeScopeError(
+          "invalid-output",
+          "ClaudeScope returned unexpected project metadata.",
+          "Update ClaudeScope and retry.",
+        );
+      }
+      return new Map(parsed.map((project) => [project.id, project.displayName]));
+    })();
+    const cache = { preference, promise: pending };
+    projectDisplayNamesCache = cache;
+    void pending.catch(() => {
+      if (projectDisplayNamesCache === cache) projectDisplayNamesCache = undefined;
+    });
+  }
+  return projectDisplayNamesCache.promise;
 }
 
 function isSessionMeta(value: unknown): value is SessionMeta {
@@ -356,7 +389,11 @@ export async function searchTranscripts(query: string, signal?: AbortSignal): Pr
       "Update ClaudeScope and retry.",
     );
   }
-  return parsed.sessions.slice(0, 30);
+  const projectNames = await projectDisplayNames().catch(() => new Map<string, string>());
+  return parsed.sessions.slice(0, 30).map((hit) => ({
+    ...hit,
+    projectDisplayName: projectNames.get(hit.projectId) ?? hit.projectId,
+  }));
 }
 
 export async function listRecentSessions(signal?: AbortSignal): Promise<SessionMeta[]> {

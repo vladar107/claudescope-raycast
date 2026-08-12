@@ -71,7 +71,7 @@ export default function Command() {
             icon={Icon.Message}
             title={hit.title || "Untitled Session"}
             subtitle={clip(hit.snippet)}
-            accessories={[{ text: hit.projectId }, { tag: hit.role }]}
+            accessories={[{ text: hit.projectDisplayName }, { tag: hit.role }]}
             actions={
               <ActionPanel>
                 <Action
