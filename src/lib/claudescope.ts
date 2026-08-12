@@ -12,6 +12,7 @@ export const MINIMUM_CLAUDESCOPE_VERSION = "0.17.0";
 const COMMAND_TIMEOUT_MS = 30_000;
 const DISCOVERY_TIMEOUT_MS = 5_000;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
+const MACOS_SYSTEM_PATHS = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
 interface ExtensionPreferences {
   executablePath?: string;
@@ -244,10 +245,9 @@ function isAbortError(error: unknown): boolean {
 
 async function execute(executable: string, args: string[], signal?: AbortSignal): Promise<string> {
   try {
-    // npm and version-manager launchers commonly use `#!/usr/bin/env node`.
-    // Raycast's PATH may omit the bin directory that contains both the launcher
-    // and Node, even when login-shell discovery found the launcher successfully.
-    const path = [dirname(executable), process.env.PATH].filter(Boolean).join(delimiter);
+    // Raycast's PATH may omit both a version manager's Node binary and standard
+    // macOS tools such as `/usr/bin/open`, which `claudescope open` launches.
+    const path = [dirname(executable), ...MACOS_SYSTEM_PATHS, process.env.PATH].filter(Boolean).join(delimiter);
     const { stdout } = await execFileAsync(executable, args, {
       encoding: "utf8",
       timeout: COMMAND_TIMEOUT_MS,
