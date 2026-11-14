@@ -27,7 +27,7 @@ Install ClaudeScope using any supported channel, then run it once. The full
 instructions are in ClaudeScope's
 [Quick start](https://github.com/vladar107/claudescope#quick-start).
 
-With npm (requires Node.js 22.12 or later):
+With npm (requires Node.js 22.13 or later):
 
 ```bash
 npm install --global @vladar107/claudescope
@@ -57,6 +57,8 @@ absolute executable path in the extension preferences.
 
 - **Search ClaudeScope** — debounced full-text search with exact message links.
 - **ClaudeScope Recent Sessions** — browse and locally filter the 75 most recent sessions.
+- **ClaudeScope Live Agents** — watch sessions active in the last 15 minutes, grouped by
+  whether they wait for you, refreshed every 5 seconds. Requires ClaudeScope 0.27.0 or later.
 - **Open ClaudeScope** — start the daemon if needed and open the local web app.
 
 ## Privacy
