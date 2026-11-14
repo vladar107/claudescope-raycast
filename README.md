@@ -27,7 +27,7 @@ Install ClaudeScope using any supported channel, then run it once. The full
 instructions are in ClaudeScope's
 [Quick start](https://github.com/vladar107/claudescope#quick-start).
 
-With npm (requires Node.js 22.12 or later):
+With npm (requires Node.js 22.13 or later):
 
 ```bash
 npm install --global @vladar107/claudescope
